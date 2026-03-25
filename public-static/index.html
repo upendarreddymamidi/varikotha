@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="te">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>వరి కోత యంత్రం పని గంటల లెక్కింపు</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --border: #cbd5e1;
+        --primary: #0f172a;
+        --success: #059669;
+        --danger: #dc2626;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+      .page {
+        min-height: 100dvh;
+        padding:
+          max(12px, env(safe-area-inset-top))
+          max(12px, env(safe-area-inset-right))
+          max(20px, env(safe-area-inset-bottom))
+          max(12px, env(safe-area-inset-left));
+      }
+      .container {
+        max-width: 860px;
+        margin: 0 auto;
+        background: var(--card);
+        border-radius: 16px;
+        padding: 14px;
+        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+      }
+      h1 { margin: 0; font-size: 22px; line-height: 1.35; }
+      .desc { margin-top: 8px; color: var(--muted); }
+      .stack { margin-top: 16px; display: grid; gap: 12px; }
+      .session {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .session-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .title { margin: 0; font-size: 18px; }
+      .grid {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      label { font-size: 14px; color: #334155; display: block; }
+      input {
+        margin-top: 6px;
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 16px; /* mobile zoom prevent */
+      }
+      .duration { margin-top: 10px; font-size: 14px; color: #334155; }
+      .danger { color: var(--danger); }
+      .row {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .panel {
+        margin-top: 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .amount-box {
+        margin-top: 12px;
+        background: #ecfdf5;
+        color: #065f46;
+        border-radius: 10px;
+        padding: 12px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      button {
+        min-height: 46px;
+        border-radius: 10px;
+        padding: 10px 14px;
+        border: 1px solid transparent;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn-primary { background: var(--primary); color: white; }
+      .btn-success { background: var(--success); color: white; }
+      .btn-outline-danger { background: white; color: var(--danger); border-color: #fecaca; }
+      .btn-outline { background: white; color: var(--danger); border-color: #fecaca; font-size: 14px; min-height: 38px; padding: 8px 12px; }
+      @media (min-width: 768px) {
+        .container { padding: 22px; }
+        .grid { grid-template-columns: 1fr 1fr; }
+        .row { grid-template-columns: auto auto; justify-content: start; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="container">
+        <h1>వరి కోత యంత్రం పని గంటలు & బిల్లు లెక్కింపు</h1>
+        <p class="desc">సెషన్‌లకు ప్రారంభ సమయం, ముగింపు సమయం ఇవ్వండి. మొత్తం సమయం & మొత్తం బిల్లు ఆటోమేటిక్‌గా లెక్కిస్తుంది.</p>
+
+        <div id="sessions" class="stack"></div>
+
+        <div class="row">
+          <button id="addSessionBtn" class="btn-primary" type="button">+ కొత్త సెషన్ జోడించు</button>
+          <button id="resetBtn" class="btn-outline-danger" type="button">పూర్తి రీసెట్</button>
+        </div>
+
+        <div class="panel">
+          <h3 style="margin: 0;">మొత్తం లెక్కింపు</h3>
+          <p id="totalTime" class="desc" style="margin-top: 8px;">మొత్తం పని సమయం: 0 ని</p>
+
+          <div class="grid" style="margin-top: 10px;">
+            <label>
+              గంటకు రేటు (రూ)
+              <input id="hourlyRate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="ఉదా: 800" />
+            </label>
+            <div style="display: flex; align-items: end;">
+              <button id="calcBtn" class="btn-success" type="button" style="width: 100%;">బిల్లు లెక్కించు</button>
+            </div>
+          </div>
+
+          <div id="totalAmount" class="amount-box">చెల్లించాల్సిన మొత్తం: —</div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        const STORAGE_KEY = "paddy-hours-calculator-html-v1";
+        const sessionsEl = document.getElementById("sessions");
+        const totalTimeEl = document.getElementById("totalTime");
+        const totalAmountEl = document.getElementById("totalAmount");
+        const hourlyRateEl = document.getElementById("hourlyRate");
+        const addSessionBtn = document.getElementById("addSessionBtn");
+        const resetBtn = document.getElementById("resetBtn");
+        const calcBtn = document.getElementById("calcBtn");
+
+        const state = {
+          sessions: [],
+          hourlyRate: "",
+          calculatedAmount: null
+        };
+
+        function createSession() {
+          return { id: Date.now() + "-" + Math.random().toString(36).slice(2, 8), start: "", end: "" };
+        }
+
+        function timeToMinutes(value) {
+          if (!value) return null;
+          const m = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+          if (!m) return null;
+          const h = Number(m[1]);
+          const min = Number(m[2]);
+          const sec = m[3] ? Number(m[3]) : 0;
+          if (h < 0 || h > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) return null;
+          return Math.floor(h * 60 + min + sec / 60);
+        }
+
+        function getSessionMinutes(s) {
+          const start = timeToMinutes(s.start);
+          const end = timeToMinutes(s.end);
+          if (start == null || end == null) return 0;
+          if (start === end) return 0;
+          if (end > start) return end - start;
+          return 24 * 60 - start + end; // overnight
+        }
+
+        function formatDuration(totalMinutes) {
+          if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return "0 ని";
+          const hrs = Math.floor(totalMinutes / 60);
+          const mins = totalMinutes % 60;
+          if (hrs <= 0) return mins + " ని";
+          if (mins <= 0) return hrs + " గం";
+          return hrs + " గం " + mins + " ని";
+        }
+
+        function totalMinutes() {
+          return state.sessions.reduce((sum, s) => sum + getSessionMinutes(s), 0);
+        }
+
+        function persist() {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function load() {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.sessions) && parsed.sessions.length) {
+              state.sessions = parsed.sessions.map((s) => ({
+                id: s.id || createSession().id,
+                start: typeof s.start === "string" ? s.start.slice(0, 5) : "",
+                end: typeof s.end === "string" ? s.end.slice(0, 5) : ""
+              }));
+            }
+            if (typeof parsed.hourlyRate === "string") state.hourlyRate = parsed.hourlyRate;
+            if (typeof parsed.calculatedAmount === "number") state.calculatedAmount = parsed.calculatedAmount;
+          } catch (_) {}
+        }
+
+        function renderSessions() {
+          sessionsEl.innerHTML = "";
+          state.sessions.forEach((s, idx) => {
+            const mins = getSessionMinutes(s);
+            const startM = timeToMinutes(s.start);
+            const endM = timeToMinutes(s.end);
+            const same = s.start && s.end && startM != null && endM != null && startM === endM;
+            const overnight = s.start && s.end && startM != null && endM != null && endM < startM && mins > 0;
+
+            const wrap = document.createElement("article");
+            wrap.className = "session";
+            wrap.innerHTML = `
+              <div class="session-head">
+                <h2 class="title">సెషన్ ${idx + 1}</h2>
+                <button class="btn-outline" type="button" data-remove="${s.id}">తొలగించు</button>
+              </div>
+              <div class="grid">
+                <label>
+                  ప్రారంభ సమయం
+                  <input type="time" step="60" value="${s.start}" data-start="${s.id}" />
+                </label>
+                <label>
+                  ముగింపు సమయం
+                  <input type="time" step="60" value="${s.end}" data-end="${s.id}" />
+                </label>
+              </div>
+              <div class="duration ${same ? "danger" : ""}">
+                ${same
+                  ? "ప్రారంభం, ముగింపు ఒకే సమయం కాకూడదు."
+                  : `ఈ సెషన్ సమయం: <strong>${formatDuration(mins)}</strong> (${mins} నిమిషాలు) ${overnight ? "(మరుసటి రోజు వరకు)" : ""}`
+                }
+              </div>
+            `;
+            sessionsEl.appendChild(wrap);
+          });
+        }
+
+        function renderSummary() {
+          const mins = totalMinutes();
+          totalTimeEl.textContent = `మొత్తం పని సమయం: ${formatDuration(mins)} (${mins} నిమిషాలు)`;
+          hourlyRateEl.value = state.hourlyRate;
+          totalAmountEl.textContent =
+            "చెల్లించాల్సిన మొత్తం: " +
+            (state.calculatedAmount == null ? "—" : `₹ ${state.calculatedAmount.toFixed(2)}`);
+        }
+
+        function render() {
+          renderSessions();
+          renderSummary();
+          persist();
+        }
+
+        sessionsEl.addEventListener("input", function (e) {
+          const target = e.target;
+          if (!(target instanceof HTMLInputElement)) return;
+          const sidStart = target.getAttribute("data-start");
+          const sidEnd = target.getAttribute("data-end");
+          if (!sidStart && !sidEnd) return;
+          const sid = sidStart || sidEnd;
+          const s = state.sessions.find((x) => x.id === sid);
+          if (!s) return;
+          if (sidStart) s.start = target.value || "";
+          if (sidEnd) s.end = target.value || "";
+          state.calculatedAmount = null;
+          render();
+        });
+
+        sessionsEl.addEventListener("click", function (e) {
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) return;
+          const sid = target.getAttribute("data-remove");
+          if (!sid) return;
+          state.sessions = state.sessions.filter((x) => x.id !== sid);
+          if (!state.sessions.length) state.sessions = [createSession()];
+          state.calculatedAmount = null;
+          render();
+        });
+
+        addSessionBtn.addEventListener("click", function () {
+          state.sessions.push(createSession());
+          state.calculatedAmount = null;
+          render();
+        });
+
+        hourlyRateEl.addEventListener("input", function () {
+          state.hourlyRate = hourlyRateEl.value || "";
+          state.calculatedAmount = null;
+          render();
+        });
+
+        calcBtn.addEventListener("click", function () {
+          const rate = Number(state.hourlyRate);
+          if (!Number.isFinite(rate) || rate < 0) {
+            state.calculatedAmount = null;
+            render();
+            return;
+          }
+          state.calculatedAmount = Number(((totalMinutes() / 60) * rate).toFixed(2));
+          render();
+        });
+
+        resetBtn.addEventListener("click", function () {
+          state.sessions = [createSession()];
+          state.hourlyRate = "";
+          state.calculatedAmount = null;
+          localStorage.removeItem(STORAGE_KEY);
+          render();
+        });
+
+        load();
+        if (!state.sessions.length) state.sessions = [createSession()];
+        render();
+      })();
+    </script>
+  </body>
+</html>
