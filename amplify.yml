@@ -1,6 +1,5 @@
-# Plain HTML/JS only — no npm, no React build.
-# Site root is paddy-static/; index.html loads at https://<your-domain>/
-# To deploy the full Vite app instead, see amplify.yml.vite in this repo.
+# Plain HTML/JS static site — no npm build.
+# Site root is public-static/; index.html is served at the app URL.
 version: 1
 frontend:
   phases:
@@ -8,6 +7,6 @@ frontend:
       commands:
         - echo "Static site — no build step"
   artifacts:
-    baseDirectory: paddy-static
+    baseDirectory: public-static
     files:
       - "**/*"
