@@ -45,6 +45,7 @@
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 12px;
+        min-width: 0; /* allow grid children to shrink inside narrow cards */
       }
       .session-head {
         display: flex;
@@ -57,18 +58,29 @@
       .grid {
         margin-top: 12px;
         display: grid;
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         gap: 10px;
       }
-      label { font-size: 14px; color: #334155; display: block; }
+      label {
+        font-size: 14px;
+        color: #334155;
+        display: block;
+        min-width: 0;
+      }
       input {
         margin-top: 6px;
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         min-height: 46px;
         border: 1px solid var(--border);
         border-radius: 10px;
         padding: 10px 12px;
         font-size: 16px; /* mobile zoom prevent */
+      }
+      input.input-time {
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
       }
       .duration { margin-top: 10px; font-size: 14px; color: #334155; }
       .danger { color: var(--danger); }
@@ -108,7 +120,7 @@
       .btn-outline { background: white; color: var(--danger); border-color: #fecaca; font-size: 14px; min-height: 38px; padding: 8px 12px; }
       @media (min-width: 768px) {
         .container { padding: 22px; }
-        .grid { grid-template-columns: 1fr 1fr; }
+        .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
         .row { grid-template-columns: auto auto; justify-content: start; }
       }
     </style>
@@ -117,7 +129,7 @@
     <main class="page">
       <section class="container">
         <h1>వరి కోత యంత్రం పని గంటలు & బిల్లు లెక్కింపు</h1>
-        <p class="desc">సెషన్‌లకు ప్రారంభ సమయం, ముగింపు సమయం ఇవ్వండి. మొత్తం సమయం & మొత్తం బిల్లు ఆటోమేటిక్‌గా లెక్కిస్తుంది.</p>
+        <p class="desc">సమయం <strong>సంఖ్యలు మాత్రమే</strong> టైప్ చేయండి — కోలన్ అవసరం లేదు. ఉదా: <code style="font-size:0.95em;">945</code> → 9:45, <code style="font-size:0.95em;">1045</code> → 10:45, <code style="font-size:0.95em;">2145</code> → 9:45 రాత్రి. <code style="font-size:0.95em;">945pm</code> లాంటి రూపం కూడా చేయవచ్చు. <code style="font-size:0.95em;">9:45</code> ఇలా కూడా వ్రాయొచ్చు.</p>
 
         <div id="sessions" class="stack"></div>
 
@@ -166,15 +178,138 @@
           return { id: Date.now() + "-" + Math.random().toString(36).slice(2, 8), start: "", end: "" };
         }
 
+        function escapeAttr(str) {
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;");
+        }
+
+        function clock12To24(h, min, isPm) {
+          if (isPm) {
+            if (h === 12) return { h: 12, m: min, sec: 0 };
+            return { h: h + 12, m: min, sec: 0 };
+          }
+          if (h === 12) return { h: 0, m: min, sec: 0 };
+          return { h, m: min, sec: 0 };
+        }
+
+        /**
+         * Accepts compact times without colon: 945 → 9:45, 1045 → 10:45, 2145 → 21:45;
+         * optional am/pm (e.g. 945pm); also 9:45 and 9:45pm.
+         */
+        function parseLooseTime(raw) {
+          let s = String(raw).trim();
+          if (!s) return null;
+
+          let lower = s.toLowerCase().replace(/\s+/g, "");
+          let isPm = false;
+          let isAm = false;
+          if (lower.endsWith("pm")) {
+            isPm = true;
+            s = s.slice(0, -2).trim();
+            lower = lower.slice(0, -2);
+          } else if (lower.endsWith("am")) {
+            isAm = true;
+            s = s.slice(0, -2).trim();
+            lower = lower.slice(0, -2);
+          } else if (lower.endsWith("p") && lower.length > 1) {
+            isPm = true;
+            s = s.slice(0, -1).trim();
+            lower = lower.slice(0, -1);
+          } else if (lower.endsWith("a") && lower.length > 1) {
+            isAm = true;
+            s = s.slice(0, -1).trim();
+            lower = lower.slice(0, -1);
+          }
+
+          if (s.includes(":")) {
+            const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            if (!m) return null;
+            const h = parseInt(m[1], 10);
+            const min = parseInt(m[2], 10);
+            const sec = m[3] != null ? parseInt(m[3], 10) : 0;
+            if (min > 59 || min < 0 || sec > 59 || sec < 0) return null;
+            if (isAm || isPm) {
+              if (h < 1 || h > 12) return null;
+              return clock12To24(h, min, isPm);
+            }
+            if (h > 23 || h < 0) return null;
+            return { h, m: min, sec };
+          }
+
+          const digits = s.replace(/\D/g, "");
+          if (!digits) return null;
+          if (digits.length > 4) return null;
+
+          if (isAm || isPm) {
+            let h, min;
+            if (digits.length === 4) {
+              h = parseInt(digits.slice(0, 2), 10);
+              min = parseInt(digits.slice(2, 4), 10);
+            } else if (digits.length === 3) {
+              h = parseInt(digits.slice(0, 1), 10);
+              min = parseInt(digits.slice(1, 3), 10);
+            } else if (digits.length === 2) {
+              h = parseInt(digits, 10);
+              min = 0;
+            } else if (digits.length === 1) {
+              h = parseInt(digits, 10);
+              min = 0;
+            } else return null;
+            if (min > 59 || h < 1 || h > 12) return null;
+            return clock12To24(h, min, isPm);
+          }
+
+          if (digits.length === 4) {
+            const h = parseInt(digits.slice(0, 2), 10);
+            const min = parseInt(digits.slice(2, 4), 10);
+            if (h > 23 || min > 59) return null;
+            return { h, m: min, sec: 0 };
+          }
+          if (digits.length === 3) {
+            const h = parseInt(digits.slice(0, 1), 10);
+            const min = parseInt(digits.slice(1, 3), 10);
+            if (h > 9 || min > 59) return null;
+            return { h, m: min, sec: 0 };
+          }
+          if (digits.length === 2) {
+            const h = parseInt(digits, 10);
+            if (h > 23) return null;
+            return { h, m: 0, sec: 0 };
+          }
+          if (digits.length === 1) {
+            const h = parseInt(digits, 10);
+            if (h > 9) return null;
+            return { h, m: 0, sec: 0 };
+          }
+          return null;
+        }
+
+        function formatHM24(obj) {
+          return String(obj.h).padStart(2, "0") + ":" + String(obj.m).padStart(2, "0");
+        }
+
+        /** Empty string, canonical HH:MM, or null if not parseable. */
+        function canonicalTimeString(raw) {
+          const t = String(raw).trim();
+          if (!t) return "";
+          const p = parseLooseTime(t);
+          if (!p || p.h > 23 || p.m > 59) return null;
+          return formatHM24(p);
+        }
+
         function timeToMinutes(value) {
           if (!value) return null;
-          const m = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-          if (!m) return null;
-          const h = Number(m[1]);
-          const min = Number(m[2]);
-          const sec = m[3] ? Number(m[3]) : 0;
-          if (h < 0 || h > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) return null;
-          return Math.floor(h * 60 + min + sec / 60);
+          const s = String(value).trim();
+          if (!s) return null;
+          const loose = parseLooseTime(s);
+          if (loose) {
+            const sec = loose.sec != null ? loose.sec : 0;
+            if (loose.h > 23 || loose.h < 0 || loose.m > 59 || loose.m < 0 || sec > 59 || sec < 0) return null;
+            return Math.floor(loose.h * 60 + loose.m + sec / 60);
+          }
+          return null;
         }
 
         function getSessionMinutes(s) {
@@ -193,6 +328,31 @@
           if (hrs <= 0) return mins + " ని";
           if (mins <= 0) return hrs + " గం";
           return hrs + " గం " + mins + " ని";
+        }
+
+        function sessionDurationParts(s) {
+          const mins = getSessionMinutes(s);
+          const startM = timeToMinutes(s.start);
+          const endM = timeToMinutes(s.end);
+          const same = s.start && s.end && startM != null && endM != null && startM === endM;
+          const overnight = s.start && s.end && startM != null && endM != null && endM < startM && mins > 0;
+          const html = same
+            ? "ప్రారంభం, ముగింపు ఒకే సమయం కాకూడదు."
+            : `ఈ సెషన్ సమయం: <strong>${formatDuration(mins)}</strong> (${mins} నిమిషాలు) ${overnight ? "(మరుసటి రోజు వరకు)" : ""}`;
+          return { same, html };
+        }
+
+        function patchSessionCard(sid) {
+          const s = state.sessions.find((x) => x.id === sid);
+          if (!s) return;
+          const esc = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(sid) : sid.replace(/"/g, '\\"');
+          const card = sessionsEl.querySelector(`article.session[data-session-id="${esc}"]`);
+          if (!card) return;
+          const durEl = card.querySelector(".duration");
+          if (!durEl) return;
+          const { same, html } = sessionDurationParts(s);
+          durEl.className = "duration" + (same ? " danger" : "");
+          durEl.innerHTML = html;
         }
 
         function totalMinutes() {
@@ -223,35 +383,28 @@
         function renderSessions() {
           sessionsEl.innerHTML = "";
           state.sessions.forEach((s, idx) => {
-            const mins = getSessionMinutes(s);
-            const startM = timeToMinutes(s.start);
-            const endM = timeToMinutes(s.end);
-            const same = s.start && s.end && startM != null && endM != null && startM === endM;
-            const overnight = s.start && s.end && startM != null && endM != null && endM < startM && mins > 0;
+            const { same, html: durHtml } = sessionDurationParts(s);
+            const sid = escapeAttr(s.id);
 
             const wrap = document.createElement("article");
             wrap.className = "session";
+            wrap.setAttribute("data-session-id", s.id);
             wrap.innerHTML = `
               <div class="session-head">
                 <h2 class="title">సెషన్ ${idx + 1}</h2>
-                <button class="btn-outline" type="button" data-remove="${s.id}">తొలగించు</button>
+                <button class="btn-outline" type="button" data-remove="${sid}">తొలగించు</button>
               </div>
               <div class="grid">
                 <label>
                   ప్రారంభ సమయం
-                  <input type="time" step="60" value="${s.start}" data-start="${s.id}" />
+                  <input type="text" class="input-time" maxlength="10" autocomplete="off" spellcheck="false" inputmode="text" placeholder="945 లేదా 1045" title="కోలన్ లేకుండా: 945 (9:45), 2145 (9:45 రాత్రి); లేదా 945pm" value="${escapeAttr(s.start)}" data-start="${sid}" />
                 </label>
                 <label>
                   ముగింపు సమయం
-                  <input type="time" step="60" value="${s.end}" data-end="${s.id}" />
+                  <input type="text" class="input-time" maxlength="10" autocomplete="off" spellcheck="false" inputmode="text" placeholder="1700 లేదా 530pm" title="ఉదా: 1700 (17:00), 530pm (5:30 రాత్రి)" value="${escapeAttr(s.end)}" data-end="${sid}" />
                 </label>
               </div>
-              <div class="duration ${same ? "danger" : ""}">
-                ${same
-                  ? "ప్రారంభం, ముగింపు ఒకే సమయం కాకూడదు."
-                  : `ఈ సెషన్ సమయం: <strong>${formatDuration(mins)}</strong> (${mins} నిమిషాలు) ${overnight ? "(మరుసటి రోజు వరకు)" : ""}`
-                }
-              </div>
+              <div class="duration${same ? " danger" : ""}">${durHtml}</div>
             `;
             sessionsEl.appendChild(wrap);
           });
@@ -284,8 +437,39 @@
           if (sidStart) s.start = target.value || "";
           if (sidEnd) s.end = target.value || "";
           state.calculatedAmount = null;
-          render();
+          persist();
+          renderSummary();
+          patchSessionCard(sid);
         });
+
+        sessionsEl.addEventListener(
+          "focusout",
+          function (e) {
+            const target = e.target;
+            if (!(target instanceof HTMLInputElement)) return;
+            const sidStart = target.getAttribute("data-start");
+            const sidEnd = target.getAttribute("data-end");
+            if (!sidStart && !sidEnd) return;
+            const sid = sidStart || sidEnd;
+            const s = state.sessions.find((x) => x.id === sid);
+            if (!s) return;
+            const raw = target.value.trim();
+            let next;
+            if (!raw) next = "";
+            else {
+              const can = canonicalTimeString(raw);
+              next = can === null ? raw : can;
+            }
+            if (target.value !== next) target.value = next;
+            if (sidStart) s.start = next;
+            if (sidEnd) s.end = next;
+            state.calculatedAmount = null;
+            persist();
+            renderSummary();
+            patchSessionCard(sid);
+          },
+          true
+        );
 
         sessionsEl.addEventListener("click", function (e) {
           const target = e.target;
