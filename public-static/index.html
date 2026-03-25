@@ -38,7 +38,6 @@
         padding: 14px;
         box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
       }
-      h1 { margin: 0; font-size: 22px; line-height: 1.35; }
       .desc { margin-top: 8px; color: var(--muted); }
       .stack { margin-top: 16px; display: grid; gap: 12px; }
       .session {
@@ -128,9 +127,6 @@
   <body>
     <main class="page">
       <section class="container">
-        <h1>వరి కోత యంత్రం పని గంటలు & బిల్లు లెక్కింపు</h1>
-        <p class="desc">సమయం <strong>సంఖ్యలు మాత్రమే</strong> టైప్ చేయండి — కోలన్ అవసరం లేదు. ఉదా: <code style="font-size:0.95em;">945</code> → 9:45, <code style="font-size:0.95em;">1045</code> → 10:45, <code style="font-size:0.95em;">2145</code> → 9:45 రాత్రి. <code style="font-size:0.95em;">945pm</code> లాంటి రూపం కూడా చేయవచ్చు. <code style="font-size:0.95em;">9:45</code> ఇలా కూడా వ్రాయొచ్చు.</p>
-
         <div id="sessions" class="stack"></div>
 
         <div class="row">
@@ -397,11 +393,11 @@
               <div class="grid">
                 <label>
                   ప్రారంభ సమయం
-                  <input type="text" class="input-time" maxlength="10" autocomplete="off" spellcheck="false" inputmode="text" placeholder="945 లేదా 1045" title="కోలన్ లేకుండా: 945 (9:45), 2145 (9:45 రాత్రి); లేదా 945pm" value="${escapeAttr(s.start)}" data-start="${sid}" />
+                  <input type="text" class="input-time" maxlength="10" autocomplete="off" spellcheck="false" inputmode="numeric" enterkeyhint="done" placeholder="945 లేదా 1045" title="సంఖ్యల ప్యాడ్. రాత్రి: 2145 (9:45pm కోసం అక్షరాలు కావాలంటే కీబోర్డ్ మార్చండి)" value="${escapeAttr(s.start)}" data-start="${sid}" />
                 </label>
                 <label>
                   ముగింపు సమయం
-                  <input type="text" class="input-time" maxlength="10" autocomplete="off" spellcheck="false" inputmode="text" placeholder="1700 లేదా 530pm" title="ఉదా: 1700 (17:00), 530pm (5:30 రాత్రి)" value="${escapeAttr(s.end)}" data-end="${sid}" />
+                  <input type="text" class="input-time" maxlength="10" autocomplete="off" spellcheck="false" inputmode="numeric" enterkeyhint="done" placeholder="1700 లేదా 530pm" title="సంఖ్యల ప్యాడ్. ఉదా: 1700; 530pm కోసం కీబోర్డ్‌లో ABC కు మారండి" value="${escapeAttr(s.end)}" data-end="${sid}" />
                 </label>
               </div>
               <div class="duration${same ? " danger" : ""}">${durHtml}</div>
